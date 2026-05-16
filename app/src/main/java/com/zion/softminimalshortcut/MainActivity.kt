@@ -410,28 +410,25 @@ private fun CreateScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        InputRow(
-            onClick = onOpenAppSelector,
-            content = {
-                Text(
-                    text = "选择目标 App",
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = selectedApp?.label ?: "未选择",
-                    color = TextMuted,
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+        InputRow(onClick = onOpenAppSelector) {
+            Text(
+                text = "选择目标 App",
+                color = TextPrimary,
+                fontSize = 15.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = selectedApp?.label ?: "未选择",
+                color = TextMuted,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = TextMuted,
+                modifier = Modifier.size(18.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -487,7 +484,7 @@ private fun SelectAppScreen(
                 icon = Icons.AutoMirrored.Rounded.ArrowBack,
                 size = 44.dp,
                 onClick = onBack
-            }
+            )
             Spacer(modifier = Modifier.size(16.dp))
             Text(
                 text = "选择目标 App",
@@ -747,7 +744,7 @@ private fun PrimaryButton(
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
-            )
+            }
             Spacer(modifier = Modifier.size(8.dp))
         }
         Text(
@@ -784,7 +781,7 @@ private fun CircularIconButton(
             contentDescription = null,
             tint = TextPrimary,
             modifier = Modifier.size(if (size <= 44.dp) 20.dp else 22.dp)
-        )
+        }
     }
 }
 
