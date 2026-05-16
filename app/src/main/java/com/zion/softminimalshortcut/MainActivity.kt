@@ -722,31 +722,34 @@ private fun PrimaryButton(
     icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
+    val buttonModifier = Modifier
+        .fillMaxWidth()
+        .height(56.dp)
+        .shadow(
+            elevation = 14.dp,
+            shape = RoundedCornerShape(28.dp),
+            ambientColor = Color(0x2E000000),
+            spotColor = Color(0x2E000000)
+        )
+        .clip(RoundedCornerShape(28.dp))
+        .background(TextPrimary)
+        .clickable(onClick = onClick)
+
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .shadow(
-                elevation = 14.dp,
-                shape = RoundedCornerShape(28.dp),
-                ambientColor = Color(0x2E000000),
-                spotColor = Color(0x2E000000)
-            )
-            .clip(RoundedCornerShape(28.dp))
-            .background(TextPrimary)
-            .clickable(onClick = onClick),
+        modifier = buttonModifier,
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (icon != null) {
+        icon?.let { leadingIcon ->
             Icon(
-                imageVector = icon,
+                imageVector = leadingIcon,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
-            }
+            )
             Spacer(modifier = Modifier.size(8.dp))
         }
+
         Text(
             text = text,
             color = Color.White,
@@ -762,26 +765,25 @@ private fun CircularIconButton(
     size: androidx.compose.ui.unit.Dp = 48.dp,
     onClick: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .shadow(
-                elevation = 6.dp,
-                shape = CircleShape,
-                ambientColor = Color(0x14000000),
-                spotColor = Color(0x14000000)
-            )
-            .clip(CircleShape)
-            .background(Card)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
+    val buttonModifier = Modifier
+        .size(size)
+        .shadow(
+            elevation = 6.dp,
+            shape = CircleShape,
+            ambientColor = Color(0x14000000),
+            spotColor = Color(0x14000000)
+        )
+        .clip(CircleShape)
+        .background(Card)
+        .clickable(onClick = onClick)
+
+    Box(modifier = buttonModifier, contentAlignment = Alignment.Center) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = TextPrimary,
             modifier = Modifier.size(if (size <= 44.dp) 20.dp else 22.dp)
-        }
+        )
     }
 }
 
