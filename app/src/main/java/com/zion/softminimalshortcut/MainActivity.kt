@@ -24,12 +24,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -48,7 +46,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Article
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
-import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Image as GalleryImageIcon
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
@@ -74,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
 import com.zion.softminimalshortcut.MainViewModel.Route
 import com.zion.softminimalshortcut.model.InstalledApp
@@ -377,7 +376,7 @@ private fun CreateScreen(
                 ) {
                     if (selectedImageUri == null) {
                         Icon(
-                            imageVector = Icons.Rounded.Image,
+                            imageVector = Icons.Rounded.GalleryImageIcon,
                             contentDescription = null,
                             tint = TextMuted,
                             modifier = Modifier.size(32.dp)
@@ -433,7 +432,7 @@ private fun CreateScreen(
                     modifier = Modifier.size(18.dp)
                 )
             }
-        )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -488,7 +487,7 @@ private fun SelectAppScreen(
                 icon = Icons.AutoMirrored.Rounded.ArrowBack,
                 size = 44.dp,
                 onClick = onBack
-            )
+            }
             Spacer(modifier = Modifier.size(16.dp))
             Text(
                 text = "选择目标 App",
@@ -688,7 +687,7 @@ private fun AppIconBox(
             )
         } else {
             Icon(
-                imageVector = Icons.Rounded.Image,
+                imageVector = Icons.Rounded.GalleryImageIcon,
                 contentDescription = null,
                 tint = TextMuted,
                 modifier = Modifier.size(iconSize)
@@ -796,5 +795,5 @@ private data class PlaceholderCard(
 )
 
 private fun Drawable.toImageBitmap(): ImageBitmap {
-    return androidx.core.graphics.drawable.toBitmap(this, 256, 256).asImageBitmap()
+    return toBitmap(256, 256).asImageBitmap()
 }
