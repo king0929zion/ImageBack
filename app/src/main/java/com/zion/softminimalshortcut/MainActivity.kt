@@ -466,7 +466,7 @@ private fun CreateScreen(
                 ) {
                     if (selectedImageUri == null) {
                         Icon(
-                            imageVector = Icons.Rounded.GalleryImageIcon,
+                            imageVector = GalleryImageIcon,
                             contentDescription = null,
                             tint = TextMuted,
                             modifier = Modifier.size(34.dp)
@@ -1142,7 +1142,7 @@ private fun AppIconBox(
             )
         } else {
             Icon(
-                imageVector = Icons.Rounded.GalleryImageIcon,
+                imageVector = GalleryImageIcon,
                 contentDescription = null,
                 tint = TextMuted,
                 modifier = Modifier.size(iconSize)
