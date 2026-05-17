@@ -8,6 +8,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.graphics.drawable.toBitmap
+import com.zion.softminimalshortcut.R
 import com.zion.softminimalshortcut.LaunchShortcutActivity
 import com.zion.softminimalshortcut.model.SavedShortcut
 import java.io.File
@@ -28,6 +29,7 @@ object ShortcutUtils {
         val shortcutInfo = ShortcutInfoCompat.Builder(context, shortcut.id)
             .setShortLabel(shortcut.label.take(20))
             .setLongLabel(shortcut.label)
+            .setActivity(ComponentName(context, LaunchShortcutActivity::class.java))
             .setIntent(intent)
             .setIcon(iconCompat)
             .build()
@@ -76,6 +78,6 @@ object ShortcutUtils {
         }.getOrNull()
 
         return bitmap?.let(IconCompat::createWithBitmap)
-            ?: IconCompat.createWithResource(context, android.R.drawable.sym_def_app_icon)
+            ?: IconCompat.createWithResource(context, R.mipmap.ic_shortcut_badge)
     }
 }
