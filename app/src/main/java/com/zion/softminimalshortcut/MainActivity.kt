@@ -9,7 +9,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +29,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.animateContentSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,23 +53,28 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Article
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Image as GalleryImageIcon
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -69,10 +84,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.zion.softminimalshortcut.MainViewModel.Route
 import com.zion.softminimalshortcut.model.InstalledApp
@@ -90,6 +107,7 @@ import com.zion.softminimalshortcut.ui.theme.SoftMinimalShortcutTheme
 import com.zion.softminimalshortcut.ui.theme.TextMuted
 import com.zion.softminimalshortcut.ui.theme.TextPlaceholder
 import com.zion.softminimalshortcut.ui.theme.TextPrimary
+import com.zion.softminimalshortcut.ui.theme.TextSecondary
 import com.zion.softminimalshortcut.ui.theme.YellowSoft
 import java.io.File
 
@@ -132,50 +150,84 @@ private fun ShortcutApp(viewModel: MainViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .widthIn(max = 480.dp)
+                .widthIn(max = 520.dp)
         ) {
-            when (viewModel.currentRoute) {
-                Route.Home -> HomeScreen(
-                    shortcuts = viewModel.shortcuts,
-                    onCreateClick = viewModel::startCreateFlow,
-                    onLaunchShortcut = { shortcut ->
-                        if (!viewModel.launchShortcut(shortcut)) {
-                            Toast.makeText(context, "目标 App 无法启动", Toast.LENGTH_SHORT).show()
+            AnimatedContent(
+                targetState = viewModel.currentRoute,
+                transitionSpec = {
+                    val forward = routeDepth(targetState) >= routeDepth(initialState)
+                    val enter = slideInHorizontally(
+                        animationSpec = tween(320),
+                        initialOffsetX = { fullWidth ->
+                            if (forward) fullWidth / 5 else -fullWidth / 5
                         }
-                    }
-                )
+                    ) + fadeIn(tween(260))
+                    val exit = slideOutHorizontally(
+                        animationSpec = tween(240),
+                        targetOffsetX = { fullWidth ->
+                            if (forward) -fullWidth / 6 else fullWidth / 6
+                        }
+                    ) + fadeOut(tween(180))
 
-                Route.Create -> CreateScreen(
-                    selectedApp = viewModel.selectedApp,
-                    shortcutName = viewModel.shortcutName,
-                    selectedImageUri = viewModel.selectedImageUri,
-                    onBack = { viewModel.navigate(Route.Home) },
-                    onPickImage = { imagePicker.launch("image/*") },
-                    onOpenAppSelector = { viewModel.navigate(Route.SelectApp) },
-                    onShortcutNameChange = viewModel::updateShortcutName,
-                    onSave = {
-                        when (val result = viewModel.saveShortcut()) {
-                            is MainViewModel.SaveResult.Invalid -> {
-                                Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
-                            }
-
-                            is MainViewModel.SaveResult.Success -> {
-                                Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                    enter
+                        .togetherWith(exit)
+                        .using(SizeTransform(clip = false))
+                },
+                label = "route-transition"
+            ) { route ->
+                when (route) {
+                    Route.Home -> HomeScreen(
+                        shortcuts = viewModel.shortcuts,
+                        onCreateClick = viewModel::startCreateFlow,
+                        onLaunchShortcut = { shortcut ->
+                            if (!viewModel.launchShortcut(shortcut)) {
+                                Toast.makeText(context, "目标 App 无法启动", Toast.LENGTH_SHORT).show()
                             }
                         }
-                    }
-                )
+                    )
 
-                Route.SelectApp -> SelectAppScreen(
-                    query = viewModel.searchQuery,
-                    apps = viewModel.filteredApps,
-                    onBack = { viewModel.navigate(Route.Create) },
-                    onQueryChange = viewModel::updateSearchQuery,
-                    onSelectApp = viewModel::selectApp
-                )
+                    Route.Create -> CreateScreen(
+                        selectedApp = viewModel.selectedApp,
+                        shortcutName = viewModel.shortcutName,
+                        selectedImageUri = viewModel.selectedImageUri,
+                        onBack = { viewModel.navigate(Route.Home) },
+                        onPickImage = { imagePicker.launch("image/*") },
+                        onOpenAppSelector = { viewModel.navigate(Route.SelectApp) },
+                        onShortcutNameChange = viewModel::updateShortcutName,
+                        onSave = {
+                            when (val result = viewModel.saveShortcut()) {
+                                is MainViewModel.SaveResult.Invalid -> {
+                                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                                }
+
+                                is MainViewModel.SaveResult.Success -> {
+                                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    )
+
+                    Route.SelectApp -> SelectAppScreen(
+                        query = viewModel.searchQuery,
+                        apps = viewModel.filteredApps,
+                        isLoading = viewModel.isLoadingApps,
+                        loadFailed = viewModel.appLoadFailed,
+                        totalCount = viewModel.installedApps.size,
+                        onBack = { viewModel.navigate(Route.Create) },
+                        onQueryChange = viewModel::updateSearchQuery,
+                        onRetry = viewModel::refreshInstalledApps,
+                        onSelectApp = viewModel::selectApp
+                    )
+                }
             }
         }
     }
+}
+
+private fun routeDepth(route: Route): Int = when (route) {
+    Route.Home -> 0
+    Route.Create -> 1
+    Route.SelectApp -> 2
 }
 
 @Composable
@@ -203,15 +255,27 @@ private fun HomeScreen(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                text = "早上好，\nZion",
-                color = TextPrimary,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 36.sp
-            )
+            Column {
+                Text(
+                    text = "快捷方式工作台",
+                    color = TextPrimary,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = if (shortcuts.isEmpty()) {
+                        "把常用 App 做成更干净的桌面入口"
+                    } else {
+                        "点一下就能直达你常用的目标应用"
+                    },
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
 
             CircularIconButton(
                 icon = Icons.Rounded.Add,
@@ -231,17 +295,16 @@ private fun HomeScreen(
                     spotColor = Color(0x14503228)
                 )
                 .clip(RoundedCornerShape(32.dp))
-                .background(Card)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            Card,
+                            Color(0xFFFFF3ED)
+                        )
+                    )
+                )
                 .padding(28.dp)
         ) {
-            Canvas(modifier = Modifier.matchParentSize()) {
-                drawCircle(
-                    color = PinkSoft.copy(alpha = 0.4f),
-                    radius = size.minDimension * 0.32f,
-                    center = Offset(x = size.width + 18.dp.toPx(), y = -14.dp.toPx())
-                )
-            }
-
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "已创建快捷方式",
@@ -249,41 +312,53 @@ private fun HomeScreen(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = shortcuts.size.toString(),
                         color = TextPrimary,
-                        fontSize = 44.sp,
+                        fontSize = 46.sp,
                         fontWeight = FontWeight.Bold,
-                        lineHeight = 44.sp
+                        lineHeight = 46.sp
                     )
-                    Spacer(modifier = Modifier.size(4.dp))
+                    Spacer(modifier = Modifier.size(6.dp))
                     Text(
                         text = "个",
                         color = TextMuted,
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Normal,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
+                Text(
+                    text = "系统会保留一个来源角标，我已经把它切到近乎透明的母图标思路上。",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+                Spacer(modifier = Modifier.height(22.dp))
                 PrimaryButton(text = "创建快捷方式", icon = Icons.Rounded.Add, onClick = onCreateClick)
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        val gridModifier = Modifier
-            .fillMaxWidth()
-            .weight(1f)
-        if (shortcuts.isEmpty()) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = gridModifier
-            ) {
+        SectionHeader(
+            title = if (shortcuts.isEmpty()) "快捷方式灵感" else "我的快捷方式",
+            subtitle = if (shortcuts.isEmpty()) "先做一个试试看，后面会越来越顺手。" else "长得更简洁，点起来更直接。"
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 152.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            if (shortcuts.isEmpty()) {
                 itemsIndexed(placeholderCards) { _, item ->
                     ShortcutTile(
                         title = item.title,
@@ -293,14 +368,7 @@ private fun HomeScreen(
                         onPlay = onCreateClick
                     )
                 }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = gridModifier
-            ) {
+            } else {
                 itemsIndexed(shortcuts, key = { _, item -> item.id }) { index, shortcut ->
                     ShortcutTile(
                         title = shortcut.label,
@@ -333,44 +401,63 @@ private fun CreateScreen(
             .padding(top = 20.dp, bottom = 20.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             CircularIconButton(
                 icon = Icons.AutoMirrored.Rounded.ArrowBack,
                 size = 44.dp,
                 onClick = onBack
             )
             Spacer(modifier = Modifier.size(16.dp))
-            Text(
-                text = "创建图标",
-                color = TextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Column {
+                Text(
+                    text = "创建快捷方式",
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "把图标、名字和目标应用一次性配好",
+                    color = TextMuted,
+                    fontSize = 13.sp
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(32.dp))
-                .background(BgSoft)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFFF7E7DF),
+                            BgSoft
+                        )
+                    )
+                )
                 .clickable(onClick = onPickImage)
-                .padding(horizontal = 20.dp, vertical = 40.dp),
+                .padding(24.dp)
+                .animateContentSize(),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                val previewSize by animateDpAsState(
+                    targetValue = if (selectedImageUri == null) 88.dp else 96.dp,
+                    label = "preview-size"
+                )
+
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.5f))
+                        .size(previewSize)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color.White.copy(alpha = 0.72f))
                         .border(
-                            width = 2.dp,
-                            color = Color.White.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(24.dp)
+                            width = 1.5.dp,
+                            color = Color.White.copy(alpha = 0.85f),
+                            shape = RoundedCornerShape(28.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -379,7 +466,7 @@ private fun CreateScreen(
                             imageVector = Icons.Rounded.GalleryImageIcon,
                             contentDescription = null,
                             tint = TextMuted,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(34.dp)
                         )
                     } else {
                         AsyncImage(
@@ -387,41 +474,69 @@ private fun CreateScreen(
                             contentDescription = null,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .clip(RoundedCornerShape(24.dp)),
+                                .clip(RoundedCornerShape(28.dp)),
                             contentScale = ContentScale.Crop
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(modifier = Modifier.height(14.dp))
                 Text(
-                    text = "图标预览",
+                    text = if (selectedImageUri == null) "点击上传自定义图片" else "图标已就位，点一下可以重选",
                     color = TextPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = if (selectedImageUri == null) "点击上传自定义图片" else "已选择自定义图标",
-                    color = TextMuted,
-                    fontSize = 13.sp
+                    text = "快捷方式的来源角标会改成近乎透明的母图标，不再是一块明显的黑块。",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(22.dp))
+
+        SectionHeader(
+            title = "目标与命名",
+            subtitle = "选择目标 App 后，会自动带入名称，你也可以再改。"
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         InputRow(onClick = onOpenAppSelector) {
-            Text(
-                text = "选择目标 App",
-                color = TextPrimary,
-                fontSize = 15.sp,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = selectedApp?.label ?: "未选择",
-                color = TextMuted,
-                fontSize = 14.sp
-            )
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppIconBox(
+                    packageName = selectedApp?.packageName,
+                    modifier = Modifier.size(40.dp),
+                    container = Color.White.copy(alpha = 0.66f),
+                    iconSize = 22.dp
+                )
+                Spacer(modifier = Modifier.size(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = selectedApp?.label ?: "选择目标 App",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = selectedApp?.packageName ?: "打开应用目录并选择跳转目标",
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
             Spacer(modifier = Modifier.size(8.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
@@ -431,35 +546,55 @@ private fun CreateScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         InputRow {
-            BasicTextField(
-                value = shortcutName,
-                onValueChange = onShortcutNameChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = TextPrimary,
-                    fontSize = 15.sp
-                ),
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                decorationBox = { innerTextField ->
-                    if (shortcutName.isBlank()) {
-                        Text(
-                            text = "填写快捷方式名称",
-                            color = TextPlaceholder,
-                            fontSize = 15.sp
-                        )
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "快捷方式名称",
+                    color = TextMuted,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                BasicTextField(
+                    value = shortcutName,
+                    onValueChange = onShortcutNameChange,
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { innerTextField ->
+                        if (shortcutName.isBlank()) {
+                            Text(
+                                text = "填写快捷方式名称",
+                                color = TextPlaceholder,
+                                fontSize = 16.sp
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
                 }
-            )
+            }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(18.dp))
+
+        InfoCard(
+            icon = Icons.Rounded.Info,
+            text = "系统角标还会保留，但它会取用我们单独指定的透明来源活动，而不是把你看到的黑底母图标继续带出来。"
+        )
+
+        Spacer(modifier = Modifier.height(30.dp))
 
         PrimaryButton(
             text = "保存快捷方式",
+            icon = Icons.Rounded.AutoAwesome,
             onClick = onSave
         )
     }
@@ -469,8 +604,12 @@ private fun CreateScreen(
 private fun SelectAppScreen(
     query: String,
     apps: List<InstalledApp>,
+    isLoading: Boolean,
+    loadFailed: Boolean,
+    totalCount: Int,
     onBack: () -> Unit,
     onQueryChange: (String) -> Unit,
+    onRetry: () -> Unit,
     onSelectApp: (InstalledApp) -> Unit
 ) {
     Column(
@@ -486,62 +625,87 @@ private fun SelectAppScreen(
                 onClick = onBack
             )
             Spacer(modifier = Modifier.size(16.dp))
-            Text(
-                text = "选择目标 App",
-                color = TextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "选择目标 App",
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (isLoading) "正在读取本机应用目录…" else "已发现 $totalCount 个可启动应用",
+                    color = TextMuted,
+                    fontSize = 13.sp
+                )
+            }
+            CircularIconButton(
+                icon = Icons.Rounded.Refresh,
+                size = 42.dp,
+                onClick = onRetry
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        SearchField(
+            value = query,
+            onValueChange = onQueryChange
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFFF0DDD6))
-                .padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Search,
-                contentDescription = null,
-                tint = TextMuted,
-                modifier = Modifier.size(20.dp)
+            MetricPill(
+                icon = Icons.Rounded.Apps,
+                label = if (query.isBlank()) "全部应用" else "搜索结果",
+                value = apps.size.toString(),
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.size(12.dp))
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = TextPrimary,
-                    fontSize = 15.sp
-                ),
-                modifier = Modifier.fillMaxWidth(),
-                decorationBox = { innerTextField ->
-                    if (query.isBlank()) {
-                        Text(
-                            text = "搜索应用名称...",
-                            color = TextPlaceholder,
-                            fontSize = 15.sp
-                        )
-                    }
-                    innerTextField()
-                }
+            MetricPill(
+                icon = Icons.Rounded.AutoAwesome,
+                label = "加载状态",
+                value = when {
+                    isLoading -> "读取中"
+                    loadFailed -> "失败"
+                    else -> "完成"
+                },
+                modifier = Modifier.weight(1f)
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(apps, key = { it.packageName }) { app ->
-                AppRow(app = app, onClick = { onSelectApp(app) })
+        when {
+            isLoading -> LoadingAppList()
+            loadFailed -> EmptyState(
+                title = "应用目录读取失败",
+                message = "再试一次就好。如果系统刚装完应用，刷新一下也能把目录重新拉齐。",
+                actionLabel = "重新读取",
+                onAction = onRetry
+            )
+
+            apps.isEmpty() -> EmptyState(
+                title = if (query.isBlank()) "这里还没有拿到应用目录" else "没搜到匹配的应用",
+                message = if (query.isBlank()) {
+                    "你可以先刷新一次，或者稍后再回来选。"
+                } else {
+                    "换应用名、包名关键词，或者清空搜索词试试。"
+                },
+                actionLabel = if (query.isBlank()) "刷新目录" else "重新读取",
+                onAction = onRetry
+            )
+
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(apps, key = { "${it.packageName}/${it.activityName}" }) { app ->
+                    AppRow(app = app, onClick = { onSelectApp(app) })
+                }
             }
         }
     }
@@ -555,20 +719,121 @@ private fun AppRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(CardSoft)
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AppIconBox(packageName = app.packageName)
-        Spacer(modifier = Modifier.size(16.dp))
-        Text(
-            text = app.label,
-            color = TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Spacer(modifier = Modifier.size(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = app.label,
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = app.packageName,
+                color = TextMuted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        AnimatedVisibility(visible = app.isSystemApp) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White.copy(alpha = 0.72f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "系统",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingAppList() {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(8) { index ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(74.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        if (index % 2 == 0) CardSoft else Color(0xFFF4E4DC)
+                    )
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyState(
+    title: String,
+    message: String,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(Card)
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(BgSoft),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = TextMuted,
+                fontSize = 13.sp,
+                lineHeight = 19.sp
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            PrimaryButton(text = actionLabel, onClick = onAction)
+        }
     }
 }
 
@@ -583,7 +848,7 @@ private fun ShortcutTile(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(1.08f)
+            .aspectRatio(1.06f)
             .clip(RoundedCornerShape(28.dp))
             .background(background)
             .clickable(onClick = onClick)
@@ -597,7 +862,9 @@ private fun ShortcutTile(
                 text = title,
                 color = TextPrimary,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             leading()
         }
@@ -605,7 +872,7 @@ private fun ShortcutTile(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .size(40.dp)
+                .size(42.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.35f))
                 .clickable(onClick = onPlay),
@@ -618,6 +885,156 @@ private fun ShortcutTile(
                 modifier = Modifier.size(18.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun SearchField(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFFF0DDD6))
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Search,
+            contentDescription = null,
+            tint = TextMuted,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.size(12.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            textStyle = TextStyle(
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            modifier = Modifier.fillMaxWidth(),
+            decorationBox = { innerTextField ->
+                if (value.isBlank()) {
+                    Text(
+                        text = "搜索应用名称、包名…",
+                        color = TextPlaceholder,
+                        fontSize = 15.sp
+                    )
+                }
+                innerTextField()
+            }
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    subtitle: String
+) {
+    Column {
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            color = TextMuted,
+            fontSize = 13.sp,
+            lineHeight = 18.sp
+        )
+    }
+}
+
+@Composable
+private fun MetricPill(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.52f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(BgSoft),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(modifier = Modifier.size(10.dp))
+        Column {
+            Text(
+                text = label,
+                color = TextMuted,
+                fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = value,
+                color = TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoCard(
+    icon: ImageVector,
+    text: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White.copy(alpha = 0.56f))
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(BgSoft),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Spacer(modifier = Modifier.size(12.dp))
+        Text(
+            text = text,
+            color = TextSecondary,
+            fontSize = 13.sp,
+            lineHeight = 19.sp
+        )
     }
 }
 
@@ -642,37 +1059,39 @@ private fun TileShortcutIcon(shortcut: SavedShortcut) {
             model = customFile,
             contentDescription = null,
             modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(8.dp)),
+                .size(30.dp)
+                .clip(RoundedCornerShape(10.dp)),
             contentScale = ContentScale.Crop
         )
     } else {
         AppIconBox(
             packageName = shortcut.packageName,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(30.dp),
             container = Color.Transparent,
-            iconSize = 28.dp
+            iconSize = 30.dp
         )
     }
 }
 
 @Composable
 private fun AppIconBox(
-    packageName: String,
-    modifier: Modifier = Modifier.size(40.dp),
+    packageName: String?,
+    modifier: Modifier = Modifier.size(44.dp),
     container: Color = BgSoft,
-    iconSize: androidx.compose.ui.unit.Dp = 24.dp
+    iconSize: Dp = 24.dp
 ) {
     val context = LocalContext.current
     val bitmap = remember(packageName) {
-        runCatching {
-            context.packageManager.getApplicationIcon(packageName).toImageBitmap()
-        }.getOrNull()
+        packageName?.let { targetPackage ->
+            runCatching {
+                context.packageManager.getApplicationIcon(targetPackage).toImageBitmap()
+            }.getOrNull()
+        }
     }
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(container),
         contentAlignment = Alignment.Center
     ) {
@@ -700,10 +1119,10 @@ private fun InputRow(
 ) {
     val baseModifier = Modifier
         .fillMaxWidth()
-        .height(64.dp)
-        .clip(RoundedCornerShape(26.dp))
+        .height(72.dp)
+        .clip(RoundedCornerShape(28.dp))
         .background(Color(0xFFF0DDD6))
-        .padding(horizontal = 24.dp)
+        .padding(horizontal = 20.dp)
 
     Row(
         modifier = if (onClick != null) {
@@ -724,14 +1143,14 @@ private fun PrimaryButton(
 ) {
     val buttonModifier = Modifier
         .fillMaxWidth()
-        .height(56.dp)
+        .height(58.dp)
         .shadow(
             elevation = 14.dp,
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(29.dp),
             ambientColor = Color(0x2E000000),
             spotColor = Color(0x2E000000)
         )
-        .clip(RoundedCornerShape(28.dp))
+        .clip(RoundedCornerShape(29.dp))
         .background(TextPrimary)
         .clickable(onClick = onClick)
 
@@ -745,7 +1164,7 @@ private fun PrimaryButton(
                 imageVector = leadingIcon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.size(8.dp))
         }
@@ -762,7 +1181,7 @@ private fun PrimaryButton(
 @Composable
 private fun CircularIconButton(
     icon: ImageVector,
-    size: androidx.compose.ui.unit.Dp = 48.dp,
+    size: Dp = 48.dp,
     onClick: () -> Unit
 ) {
     val buttonModifier = Modifier
