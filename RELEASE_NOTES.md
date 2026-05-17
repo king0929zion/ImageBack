@@ -1,10 +1,10 @@
-# ImageBack 1.0.2
+# ImageBack 1.0.3
 
 ## What's New
 
-- Fixed the shortcut source badge flow so the launcher badge now points to a nearly invisible transparent host icon instead of a visible black block.
-- Refined page transitions and in-screen motion to make the create flow and screen switching feel smoother.
-- Reworked the target app picker with async loading, better search ranking, retry handling, and clearer app metadata.
+- Fixed shortcut creation failure by improving the pin request flow and adding a legacy launcher fallback for launchers that still rely on the older shortcut install path.
+- Reworked the app picker so icons load off the main thread, scrolling stays smoother, and each launchable activity is resolved more reliably from the local device app directory.
+- Re-tuned the parent app and shortcut badge icon resources so the system badge no longer falls back to an obvious black source icon.
 
 ## Release Notes
 
