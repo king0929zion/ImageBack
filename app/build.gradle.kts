@@ -3,6 +3,18 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val signingKeystorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH")
+val signingStorePassword = providers.environmentVariable("SIGNING_STORE_PASSWORD")
+val signingKeyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS")
+val signingKeyPassword = providers.environmentVariable("SIGNING_KEY_PASSWORD")
+
+val hasReleaseSigning = listOf(
+    signingKeystorePath,
+    signingStorePassword,
+    signingKeyAlias,
+    signingKeyPassword
+).all { !it.orNull.isNullOrBlank() }
+
 android {
     namespace = "com.zion.softminimalshortcut"
     compileSdk = 35
@@ -11,8 +23,8 @@ android {
         applicationId = "com.zion.softminimalshortcut"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -20,9 +32,23 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(signingKeystorePath.get())
+                storePassword = signingStorePassword.get()
+                keyAlias = signingKeyAlias.get()
+                keyPassword = signingKeyPassword.get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
