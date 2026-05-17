@@ -148,17 +148,23 @@ class MainViewModel(
             activityName = app.activityName,
             targetAppName = app.label,
             iconPath = iconPath
-        )
+        }
 
         shortcuts = shortcutStore.saveShortcut(shortcut)
-        val created = ShortcutUtils.requestPinnedShortcut(appContext, shortcut)
-        resetDraft()
-        currentRoute = Route.Home
+        return when (ShortcutUtils.requestPinnedShortcut(appContext, shortcut)) {
+            ShortcutUtils.PinShortcutRequestResult.Requested -> {
+                resetDraft()
+                currentRoute = Route.Home
+                SaveResult.Success("已发起添加请求，请在系统弹窗里确认")
+            }
 
-        return if (created) {
-            SaveResult.Success("已请求创建桌面快捷方式")
-        } else {
-            SaveResult.Success("已保存配置，当前桌面可能不支持固定快捷方式")
+            ShortcutUtils.PinShortcutRequestResult.Unsupported -> {
+                SaveResult.Invalid("当前桌面不支持直接添加快捷方式，或未开放该能力")
+            }
+
+            ShortcutUtils.PinShortcutRequestResult.Failed -> {
+                SaveResult.Invalid("快捷方式添加失败，请先允许桌面添加快捷方式后再试")
+            }
         }
     }
 
