@@ -3,6 +3,7 @@ package com.zion.softminimalshortcut.shortcut
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -18,8 +19,16 @@ object ShortcutUtils {
     const val EXTRA_PACKAGE_NAME = "extra_package_name"
     const val EXTRA_ACTIVITY_NAME = "extra_activity_name"
 
-    fun requestPinnedShortcut(context: Context, shortcut: SavedShortcut): Boolean {
-        val iconCompat = createShortcutIcon(context, shortcut)
+    enum class PinShortcutRequestResult {
+        Requested,
+        Unsupported,
+        Failed
+    }
+
+    fun requestPinnedShortcut(context: Context, shortcut: SavedShortcut): PinShortcutRequestResult {
+        val shortcutBitmap = createShortcutBitmap(context, shortcut)
+        val iconCompat = shortcutBitmap?.let(IconCompat::createWithBitmap)
+            ?: IconCompat.createWithResource(context, R.mipmap.ic_shortcut_badge)
         val intent = Intent(context, LaunchShortcutActivity::class.java).apply {
             action = Intent.ACTION_VIEW
             putExtra(EXTRA_PACKAGE_NAME, shortcut.packageName)
@@ -34,7 +43,23 @@ object ShortcutUtils {
             .setIcon(iconCompat)
             .build()
 
-        return ShortcutManagerCompat.requestPinShortcut(context, shortcutInfo, null)
+        val pinSupported = ShortcutManagerCompat.isRequestPinShortcutSupported(context)
+        if (pinSupported && ShortcutManagerCompat.requestPinShortcut(context, shortcutInfo, null)) {
+            return PinShortcutRequestResult.Requested
+        }
+
+        val legacySucceeded = requestLegacyPinnedShortcut(
+            context = context,
+            label = shortcut.label,
+            launchIntent = intent,
+            iconBitmap = shortcutBitmap
+        )
+
+        return when {
+            legacySucceeded -> PinShortcutRequestResult.Requested
+            pinSupported -> PinShortcutRequestResult.Failed
+            else -> PinShortcutRequestResult.Unsupported
+        }
     }
 
     fun launchTargetApp(context: Context, packageName: String, activityName: String?): Boolean {
@@ -67,17 +92,32 @@ object ShortcutUtils {
         return false
     }
 
-    private fun createShortcutIcon(context: Context, shortcut: SavedShortcut): IconCompat {
+    private fun requestLegacyPinnedShortcut(
+        context: Context,
+        label: String,
+        launchIntent: Intent,
+        iconBitmap: Bitmap?
+    ): Boolean {
+        return runCatching {
+            val legacyIntent = Intent("com.android.launcher.action.INSTALL_SHORTCUT").apply {
+                putExtra(Intent.EXTRA_SHORTCUT_INTENT, launchIntent)
+                putExtra(Intent.EXTRA_SHORTCUT_NAME, label)
+                putExtra("duplicate", false)
+                iconBitmap?.let { putExtra(Intent.EXTRA_SHORTCUT_ICON, it) }
+            }
+            context.sendBroadcast(legacyIntent)
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun createShortcutBitmap(context: Context, shortcut: SavedShortcut): Bitmap? {
         val bitmapFromFile = shortcut.iconPath
             ?.let(::File)
             ?.takeIf { it.exists() }
             ?.let { BitmapFactory.decodeFile(it.absolutePath) }
 
-        val bitmap = bitmapFromFile ?: runCatching {
+        return bitmapFromFile ?: runCatching {
             context.packageManager.getApplicationIcon(shortcut.packageName).toBitmap(192, 192)
         }.getOrNull()
-
-        return bitmap?.let(IconCompat::createWithBitmap)
-            ?: IconCompat.createWithResource(context, R.mipmap.ic_shortcut_badge)
     }
 }
