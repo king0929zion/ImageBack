@@ -1,10 +1,9 @@
 package com.zion.softminimalshortcut.data
 
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.os.Build
+import android.content.pm.LauncherApps
+import android.os.Process
 import com.zion.softminimalshortcut.model.InstalledApp
 import java.text.Collator
 import java.util.Locale
@@ -12,39 +11,40 @@ import java.util.Locale
 object AppDiscovery {
 
     fun loadLaunchableApps(context: Context): List<InstalledApp> {
-        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val collator = Collator.getInstance(Locale.CHINA)
-        val packageManager = context.packageManager
-        val apps = queryLauncherActivities(packageManager, launcherIntent)
+        val launcherApps = context.getSystemService(LauncherApps::class.java)
+        val apps = launcherApps?.getActivityList(null, Process.myUserHandle()).orEmpty()
 
         return apps
-            .mapNotNull { resolveInfo ->
-                val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
-                if (activityInfo.packageName == context.packageName) {
+            .mapNotNull { activityInfo ->
+                val packageName = activityInfo.applicationInfo.packageName
+                if (packageName == context.packageName) {
                     return@mapNotNull null
                 }
 
-                val label = resolveInfo.loadLabel(packageManager)?.toString()?.trim().orEmpty()
-                val fallbackLabel = activityInfo.packageName.substringAfterLast('.')
+                val label = activityInfo.label?.toString()?.trim().orEmpty()
+                val fallbackLabel = packageName.substringAfterLast('.')
                 val displayLabel = label.ifBlank { fallbackLabel }
                 val systemApp = (activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                val componentKey = "${activityInfo.componentName.packageName}/${activityInfo.componentName.className}"
 
                 InstalledApp(
                     label = displayLabel,
-                    packageName = activityInfo.packageName,
-                    activityName = activityInfo.name,
+                    packageName = packageName,
+                    activityName = activityInfo.componentName.className,
                     searchKey = normalizeSearchKey(
                         listOf(
                             displayLabel,
-                            activityInfo.packageName,
-                            activityInfo.name,
+                            packageName,
+                            activityInfo.componentName.className,
                             fallbackLabel
                         ).joinToString(" ")
                     ),
-                    isSystemApp = systemApp
+                    isSystemApp = systemApp,
+                    componentKey = componentKey
                 )
             }
-            .distinctBy { "${it.packageName}/${it.activityName}" }
+            .distinctBy { it.componentKey }
             .sortedWith { left, right ->
                 when {
                     left.isSystemApp != right.isSystemApp -> {
@@ -54,19 +54,6 @@ object AppDiscovery {
                     else -> collator.compare(left.label, right.label)
                 }
             }
-    }
-
-    private fun queryLauncherActivities(
-        packageManager: PackageManager,
-        launcherIntent: Intent
-    ) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        packageManager.queryIntentActivities(
-            launcherIntent,
-            PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-        )
-    } else {
-        @Suppress("DEPRECATION")
-        packageManager.queryIntentActivities(launcherIntent, PackageManager.MATCH_ALL)
     }
 
     private fun normalizeSearchKey(value: String): String {
