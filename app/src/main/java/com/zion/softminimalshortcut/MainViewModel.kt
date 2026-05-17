@@ -7,11 +7,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.zion.softminimalshortcut.data.AppDiscovery
 import com.zion.softminimalshortcut.data.ShortcutStore
 import com.zion.softminimalshortcut.model.InstalledApp
 import com.zion.softminimalshortcut.model.SavedShortcut
 import com.zion.softminimalshortcut.shortcut.ShortcutUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class MainViewModel(
@@ -33,6 +37,12 @@ class MainViewModel(
     var installedApps by mutableStateOf(emptyList<InstalledApp>())
         private set
 
+    var isLoadingApps by mutableStateOf(false)
+        private set
+
+    var appLoadFailed by mutableStateOf(false)
+        private set
+
     var searchQuery by mutableStateOf("")
         private set
 
@@ -47,17 +57,26 @@ class MainViewModel(
 
     init {
         shortcuts = shortcutStore.loadShortcuts()
-        installedApps = AppDiscovery.loadLaunchableApps(appContext)
+        refreshInstalledApps()
     }
 
     val filteredApps: List<InstalledApp>
         get() = if (searchQuery.isBlank()) {
             installedApps
         } else {
-            installedApps.filter {
-                it.label.contains(searchQuery, ignoreCase = true) ||
-                    it.packageName.contains(searchQuery, ignoreCase = true)
-            }
+            val normalizedQuery = normalizeSearchKey(searchQuery)
+            installedApps
+                .filter { it.searchKey.contains(normalizedQuery) }
+                .sortedWith(
+                    compareBy<InstalledApp> {
+                        when {
+                            it.label.equals(searchQuery.trim(), ignoreCase = true) -> 0
+                            normalizeSearchKey(it.label).startsWith(normalizedQuery) -> 1
+                            it.packageName.lowercase().startsWith(searchQuery.trim().lowercase()) -> 2
+                            else -> 3
+                        }
+                    }.thenBy { it.label.lowercase() }
+                )
         }
 
     fun navigate(route: Route) {
@@ -71,6 +90,23 @@ class MainViewModel(
 
     fun updateSearchQuery(query: String) {
         searchQuery = query
+    }
+
+    fun refreshInstalledApps() {
+        viewModelScope.launch {
+            isLoadingApps = true
+            appLoadFailed = false
+            val apps = runCatching {
+                withContext(Dispatchers.IO) {
+                    AppDiscovery.loadLaunchableApps(appContext)
+                }
+            }.getOrElse {
+                appLoadFailed = true
+                emptyList()
+            }
+            installedApps = apps
+            isLoadingApps = false
+        }
     }
 
     fun updateShortcutName(name: String) {
@@ -145,5 +181,12 @@ class MainViewModel(
                 return MainViewModel(context.applicationContext) as T
             }
         }
+    }
+
+    private fun normalizeSearchKey(value: String): String {
+        return value
+            .trim()
+            .lowercase()
+            .replace("\\s+".toRegex(), "")
     }
 }
