@@ -1,8 +1,10 @@
 package com.zion.softminimalshortcut
 
+import android.content.ComponentName
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
+import android.util.LruCache
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -68,6 +70,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,6 +112,8 @@ import com.zion.softminimalshortcut.ui.theme.TextPrimary
 import com.zion.softminimalshortcut.ui.theme.TextSecondary
 import com.zion.softminimalshortcut.ui.theme.YellowSoft
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -511,6 +516,7 @@ private fun CreateScreen(
             ) {
                 AppIconBox(
                     packageName = selectedApp?.packageName,
+                    activityName = selectedApp?.activityName,
                     modifier = Modifier.size(40.dp),
                     container = Color.White.copy(alpha = 0.66f),
                     iconSize = 22.dp
@@ -577,7 +583,7 @@ private fun CreateScreen(
                         }
                         innerTextField()
                     }
-                }
+                )
             }
         }
 
@@ -699,6 +705,7 @@ private fun SelectAppScreen(
 
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(apps, key = { "${it.packageName}/${it.activityName}" }) { app ->
@@ -723,7 +730,10 @@ private fun AppRow(
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AppIconBox(packageName = app.packageName)
+        AppIconBox(
+            packageName = app.packageName,
+            activityName = app.activityName
+        )
         Spacer(modifier = Modifier.size(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -739,6 +749,14 @@ private fun AppRow(
                 text = app.packageName,
                 color = TextMuted,
                 fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = app.activityName.substringAfterLast('.'),
+                color = TextPlaceholder,
+                fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1064,6 +1082,7 @@ private fun TileShortcutIcon(shortcut: SavedShortcut) {
     } else {
         AppIconBox(
             packageName = shortcut.packageName,
+            activityName = shortcut.activityName,
             modifier = Modifier.size(30.dp),
             container = Color.Transparent,
             iconSize = 30.dp
@@ -1074,17 +1093,39 @@ private fun TileShortcutIcon(shortcut: SavedShortcut) {
 @Composable
 private fun AppIconBox(
     packageName: String?,
+    activityName: String? = null,
     modifier: Modifier = Modifier.size(44.dp),
     container: Color = BgSoft,
     iconSize: Dp = 24.dp
 ) {
     val context = LocalContext.current
-    val bitmap = remember(packageName) {
-        packageName?.let { targetPackage ->
-            runCatching {
-                context.packageManager.getApplicationIcon(targetPackage).toImageBitmap()
-            }.getOrNull()
+    val cacheKey = remember(packageName, activityName) {
+        if (packageName.isNullOrBlank()) {
+            null
+        } else {
+            buildString {
+                append(packageName)
+                append('#')
+                append(activityName.orEmpty())
+            }
         }
+    }
+    val bitmap by produceState<ImageBitmap?>(initialValue = cacheKey?.let(AppIconCache::get), key1 = cacheKey) {
+        if (cacheKey == null || packageName.isNullOrBlank()) {
+            value = null
+            return@produceState
+        }
+        if (value != null) {
+            return@produceState
+        }
+
+        value = withContext(Dispatchers.IO) {
+            loadAppIconBitmap(
+                context = context,
+                packageName = packageName,
+                activityName = activityName
+            )
+        }?.also { AppIconCache.put(cacheKey, it) }
     }
 
     Box(
@@ -1209,6 +1250,37 @@ private data class PlaceholderCard(
     val icon: ImageVector,
     val color: Color
 )
+
+private object AppIconCache {
+    private val cache = LruCache<String, ImageBitmap>(96)
+
+    fun get(key: String): ImageBitmap? = cache.get(key)
+
+    fun put(key: String, bitmap: ImageBitmap) {
+        cache.put(key, bitmap)
+    }
+}
+
+private fun loadAppIconBitmap(
+    context: android.content.Context,
+    packageName: String,
+    activityName: String?
+): ImageBitmap? {
+    val packageManager = context.packageManager
+    val activityIcon = activityName
+        ?.takeIf { it.isNotBlank() }
+        ?.let { targetActivity ->
+            runCatching {
+                packageManager.getActivityIcon(ComponentName(packageName, targetActivity))
+            }.getOrNull()
+        }
+
+    val drawable = activityIcon ?: runCatching {
+        packageManager.getApplicationIcon(packageName)
+    }.getOrNull()
+
+    return drawable?.toImageBitmap()
+}
 
 private fun Drawable.toImageBitmap(): ImageBitmap {
     return toBitmap(256, 256).asImageBitmap()
