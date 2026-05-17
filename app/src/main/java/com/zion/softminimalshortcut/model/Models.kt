@@ -5,7 +5,8 @@ data class InstalledApp(
     val packageName: String,
     val activityName: String,
     val searchKey: String,
-    val isSystemApp: Boolean
+    val isSystemApp: Boolean,
+    val componentKey: String
 )
 
 data class SavedShortcut(
